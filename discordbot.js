@@ -20,7 +20,8 @@ class DiscordBot {
             ],
         });
         this.rconManager = rconManager;
-        this.webhookUrl = process.env.WEBHOOK_URL;
+        this.webhookUrl = process.env.WEBHOOK_URL_CHAT;
+        this.webhookUrlLog = process.env.WEBHOOK_URL_LOG;
         this.channelId = process.env.CHANNEL_ID;
         this.lastMessages = {};
     }
@@ -29,6 +30,7 @@ class DiscordBot {
         await this.loginDiscord();
         this.setupMessageListener();
         this.startChatFetchCycle();
+        this.startFetchGameLogCycle();
     }
 
     async loginDiscord() {
@@ -67,7 +69,6 @@ class DiscordBot {
 
     startChatFetchCycle() {
         setInterval(() => {
-            console.log('Starting chat fetch cycle for all servers.');
             for (const server of this.rconManager.servers) {
                 this.fetchAndStoreChat(server);
             }
@@ -79,11 +80,15 @@ class DiscordBot {
             const chatData = await this.rconManager.getLatestChat(server.index);
 
             if (!chatData) {
-                console.log(`No new chat messages from ${server.name}`);
                 return;
             }
 
             const { username, message } = chatData;
+
+            if (message.includes('AdminCmd:')) {
+                console.log(`Admin command detected from ${server.name}, skipping...`);
+                return; 
+            }
 
             if (this.lastMessages[server.index] === message) {
                 console.log(`Duplicate message from ${server.name}: ${message}`);
@@ -94,9 +99,7 @@ class DiscordBot {
 
             const content = `**[${server.name}] ${username}:** ${message}`;
 
-            const payload = {
-                content,
-            };
+            const payload = { content };
 
             console.log('Sending message to Discord webhook:', JSON.stringify(payload));
 
@@ -148,6 +151,46 @@ class DiscordBot {
                     console.error(`Error sending message to server ${server.name}:`, error);
                 }
             }
+        }
+    }
+
+    async startFetchGameLogCycle() {
+        for(const server of this.rconManager.servers){
+            setInterval(async () => {
+                await this.getGameLog(server);
+            }, 10000);
+        }
+    }
+
+    async getGameLog(server) {
+        try {
+            const log = await this.rconManager.executeRconCommand(server.index, 'getgamelog');
+
+            // Check if the log is invalid or contains the specific message
+            if (!log || log.trim() === 'Server received, But no response!!') {
+                return;
+            }
+
+            const payload = {
+                content: `**[${server.name}]**:\n\`\`\`${log}\`\`\``,
+            };
+
+            const response = await fetch(this.webhookUrlLog, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Failed to send webhook message for ${server.name}: ${response.status} ${response.statusText} - ${errorText}`);
+            } else {
+                console.log(`Sent game log from ${server.name} to Discord.`);
+            }
+        } catch (error) {
+            console.error(`Error Getting Game Log for ${server.name}:`, error);
         }
     }
 

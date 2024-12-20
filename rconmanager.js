@@ -55,7 +55,6 @@ class RCONManager {
 
         try {
             const response = await rconClient.send(command);
-            console.log(`Executed command on server index ${serverIndex}: "${command}"`);
             return response;
         } catch (error) {
             console.error(`Error executing command "${command}" on server index ${serverIndex}:`, error);
