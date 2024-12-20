@@ -9,8 +9,8 @@ class RCONManager {
         };
         this.servers = [
             { index: 0, name: "The Island", port: 7779 },
-            { index: 1, name: "The Center", port: 7791 },
-            { index: 3, name: "Extinction", port: 7782 },
+            { index: 1, name: "Abberation", port: 7788 },
+            { index: 3, name: "Extinction", port: 7791 },
         ];
         this.rconClients = {};
     }

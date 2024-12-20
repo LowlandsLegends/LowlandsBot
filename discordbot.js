@@ -8,6 +8,7 @@ import { CommandHandler } from './handlers/CommandHandler.js';
 import { RconCommand } from './commands/RconCommand.js';
 import { RconServerCommand } from './commands/RconServerCommand.js';
 import { ListServersCommand } from './commands/ListServersCommand.js';
+import { ActivityType } from 'discord.js';
 
 dotenv.config();
 
@@ -55,6 +56,7 @@ class DiscordBot {
         this.setupMessageListener();
         this.startChatFetchCycle();
         this.startFetchGameLogCycle();
+        this.startPresenceUpdateCycle();
     }
 
     async loginDiscord() {
@@ -254,6 +256,47 @@ class DiscordBot {
             const discordServerIndex = 5;
             await this.storeMessageInSupabase(discordServerIndex, username, content);
         });
+    }
+    startPresenceUpdateCycle() {
+        // Update presence every 60 seconds (adjust as needed)
+        setInterval(async () => {
+            await this.updateBotPresenceWithPlayerCounts();
+        }, 20000);
+    }
+
+    async updateBotPresenceWithPlayerCounts() {
+        try {
+            let totalPlayers = 0;
+            for (const s of this.rconManager.servers) {
+                let playerListResult;
+                try {
+                    playerListResult = await this.rconManager.executeRconCommand(s.index, 'listplayers');
+                } catch (err) {
+                    console.error(`Error executing 'listplayers' on ${s.name}:`, err);
+                    continue;
+                }
+
+                const playerCount = this.getPlayerCountFromList(playerListResult);
+                totalPlayers += playerCount;
+            }
+
+            // Set the bot's activity (presence)
+            this.client.user.setPresence({
+                activities: [{ name: `${totalPlayers} players online`, type: ActivityType.Watching }],
+                status: 'online'
+            });
+
+        } catch (error) {
+            console.error('Error updating bot presence:', error);
+        }
+    }
+
+    getPlayerCountFromList(playerListResult) {
+        if (!playerListResult || playerListResult.trim() === '' || playerListResult.includes('No Players Connected')) {
+            return 0;
+        }
+        const lines = playerListResult.split(/\r?\n/).filter(line => line.trim() !== '');
+        return lines.length;
     }
 }
 

@@ -13,9 +13,18 @@ export class ListServersCommand {
             .setDescription(this.description);
     }
 
+    // Helper function to determine player count from 'listplayers' result
+    getPlayerCountFromList(playerListResult) {
+        if (!playerListResult || playerListResult.trim() === '' || playerListResult.includes('No Players Connected')) {
+            return 0;
+        }
+        const lines = playerListResult.split(/\r?\n/).filter(line => line.trim() !== '');
+        return lines.length;
+    }
+
     async execute(interaction, rconManager) {
-        // Fetch player list for each server
         const fields = [];
+        let totalPlayers = 0;
 
         for (const s of rconManager.servers) {
             let playerListResult;
@@ -26,17 +35,31 @@ export class ListServersCommand {
                 playerListResult = `Error retrieving players: ${err.message}`;
             }
 
-            // Add a field for this server
+            const playerCount = this.getPlayerCountFromList(playerListResult);
+            totalPlayers += playerCount;
+
+            let fieldValue;
+            if (playerListResult.startsWith('Error')) {
+                // If we got an error result
+                fieldValue = playerListResult;
+            } else if (playerCount === 0) {
+                fieldValue = 'No players online.';
+            } else {
+                // Show player count and list
+                fieldValue = `${playerCount} ${playerCount === 1 ? 'player' : 'players'}:\n\`\`\`${playerListResult}\`\`\``;
+            }
+
             fields.push({
-                name: `${s.name} - ${s.index}`,
-                value: playerListResult.trim() === '' ? 'No players online.' : playerListResult,
+                name: `Index: ${s.index} - ${s.name}`,
+                value: fieldValue,
                 inline: false
             });
         }
 
         const embed = new EmbedBuilder()
             .setTitle('Available Servers and Current Players')
-            .setColor('#FF0000') // Red color
+            .setColor(0x0099ff)
+            .setDescription(`Total Players Across All Servers: ${totalPlayers}`)
             .addFields(fields)
             .setTimestamp();
 
