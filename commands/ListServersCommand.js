@@ -13,11 +13,16 @@ export class ListServersCommand {
             .setDescription(this.description);
     }
 
-    // Helper function to determine player count from 'listplayers' result
     getPlayerCountFromList(playerListResult) {
-        if (!playerListResult || playerListResult.trim() === '' || playerListResult.includes('No Players Connected')) {
+        if (
+            !playerListResult ||
+            playerListResult.trim() === '' ||
+            playerListResult.includes('No Players Connected') ||
+            playerListResult.startsWith('Error') // Added check for error messages
+        ) {
             return 0;
         }
+
         const lines = playerListResult.split(/\r?\n/).filter(line => line.trim() !== '');
         return lines.length;
     }
@@ -58,7 +63,7 @@ export class ListServersCommand {
 
         const embed = new EmbedBuilder()
             .setTitle('Available Servers and Current Players')
-            .setColor(0x0099ff)
+            .setColor('Red')
             .setDescription(`Total Players Across All Servers: ${totalPlayers}`)
             .addFields(fields)
             .setTimestamp();

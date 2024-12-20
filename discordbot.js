@@ -89,7 +89,7 @@ class DiscordBot {
             const { username, message } = chatData;
 
             // Check if admin command
-            if (message.includes('AdminCmd:')) {
+            if (username.includes('Admin')) {
                 console.log(`Admin command detected from ${server.name}, skipping...`);
                 return;
             }
