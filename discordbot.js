@@ -123,6 +123,16 @@ class DiscordBot {
             await this.sendMessageToOtherServers(server.index, username, message);
         } catch (error) {
             console.error(`Error fetching chat from server ${server.name}:`, error);
+
+            // Check if it's a timeout error
+            if (error.message && error.message.includes('Timeout')) {
+                // Attempt a reconnect or simply skip this iteration
+                console.log(`Attempting to reconnect to ${server.name} due to timeout...`);
+                await this.rconManager.connectRCON(server);
+
+                // Optional: Add a short delay before next attempt if desired
+                await new Promise(res => setTimeout(res, 5000));
+            }
         }
     }
 
