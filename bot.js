@@ -1,4 +1,4 @@
-// main.js
+// bot.js
 import dotenv from 'dotenv';
 dotenv.config(); // Load environment variables before importing other modules
 import RCONManager from './rconmanager.js';

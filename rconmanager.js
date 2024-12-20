@@ -1,3 +1,4 @@
+//rconmanager.js
 import { Rcon } from 'rcon-client';
 
 class RCONManager {

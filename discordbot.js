@@ -1,12 +1,19 @@
+// discordbot.js
 import { Client, GatewayIntentBits } from 'discord.js';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 
+import { CommandHandler } from './handlers/CommandHandler.js';
+import { RconCommand } from './commands/RconCommand.js';
+import { RconServerCommand } from './commands/RconServerCommand.js';
+import { ListServersCommand } from './commands/ListServersCommand.js';
+
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_KEY;
+const allowedRoleId = '1319503680340361246'; 
 
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
@@ -17,17 +24,34 @@ class DiscordBot {
                 GatewayIntentBits.Guilds,
                 GatewayIntentBits.GuildMessages,
                 GatewayIntentBits.MessageContent,
+                GatewayIntentBits.GuildIntegrations
             ],
         });
+
         this.rconManager = rconManager;
         this.webhookUrl = process.env.WEBHOOK_URL_CHAT;
         this.webhookUrlLog = process.env.WEBHOOK_URL_LOG;
         this.channelId = process.env.CHANNEL_ID;
         this.lastMessages = {};
+
+        // Initialize command handler
+        this.commandHandler = new CommandHandler(this.client, {
+            token: process.env.DISCORD_TOKEN,
+            clientId: process.env.CLIENT_ID,
+            guildId: process.env.GUILD_ID,
+            rconManager: this.rconManager
+        });
+
+        // Register commands
+        this.commandHandler.registerCommand(new RconCommand(allowedRoleId));
+        this.commandHandler.registerCommand(new RconServerCommand(allowedRoleId));
+        this.commandHandler.registerCommand(new ListServersCommand());
     }
 
     async init() {
         await this.loginDiscord();
+        await this.commandHandler.registerWithDiscord();
+        this.commandHandler.setupInteractionListener();
         this.setupMessageListener();
         this.startChatFetchCycle();
         this.startFetchGameLogCycle();
@@ -47,26 +71,6 @@ class DiscordBot {
         }
     }
 
-    setupMessageListener() {
-        this.client.on('messageCreate', async (message) => {
-            if (message.author.bot || message.channel.id !== this.channelId) return;
-
-            const username = message.author.username;
-            const content = message.content;
-
-            console.log(`Received message from Discord user ${username}: ${content}`);
-
-            // Send the message to all servers
-            await this.sendMessageToAllServers(username, content);
-
-            // Store the Discord message in Supabase as well
-            // For Discord-origin messages, you can decide on a server_index. 
-            // If you don't have a meaningful server index, you could use a special index like 0 or -1.
-            const discordServerIndex = 5;
-            await this.storeMessageInSupabase(discordServerIndex, username, content);
-        });
-    }
-
     startChatFetchCycle() {
         setInterval(() => {
             for (const server of this.rconManager.servers) {
@@ -78,16 +82,14 @@ class DiscordBot {
     async fetchAndStoreChat(server) {
         try {
             const chatData = await this.rconManager.getLatestChat(server.index);
-
-            if (!chatData) {
-                return;
-            }
+            if (!chatData) return;
 
             const { username, message } = chatData;
 
+            // Check if admin command
             if (message.includes('AdminCmd:')) {
                 console.log(`Admin command detected from ${server.name}, skipping...`);
-                return; 
+                return;
             }
 
             if (this.lastMessages[server.index] === message) {
@@ -98,16 +100,13 @@ class DiscordBot {
             this.lastMessages[server.index] = message;
 
             const content = `**[${server.name}] ${username}:** ${message}`;
-
             const payload = { content };
 
             console.log('Sending message to Discord webhook:', JSON.stringify(payload));
 
             const response = await fetch(this.webhookUrl, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
 
@@ -118,11 +117,8 @@ class DiscordBot {
                 console.log(`Sent message from ${username} on ${server.name} to Discord.`);
             }
 
-            // Store the in-game message in Supabase
             await this.storeMessageInSupabase(server.index, username, message);
-
             await this.sendMessageToOtherServers(server.index, username, message);
-
         } catch (error) {
             console.error(`Error fetching chat from server ${server.name}:`, error);
         }
@@ -155,7 +151,7 @@ class DiscordBot {
     }
 
     async startFetchGameLogCycle() {
-        for(const server of this.rconManager.servers){
+        for (const server of this.rconManager.servers) {
             setInterval(async () => {
                 await this.getGameLog(server);
             }, 10000);
@@ -166,7 +162,6 @@ class DiscordBot {
         try {
             const log = await this.rconManager.executeRconCommand(server.index, 'getgamelog');
 
-            // Check if the log is invalid or contains the specific message
             if (!log || log.trim() === 'Server received, But no response!!') {
                 return;
             }
@@ -177,9 +172,7 @@ class DiscordBot {
 
             const response = await fetch(this.webhookUrlLog, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
 
@@ -195,7 +188,6 @@ class DiscordBot {
     }
 
     async storeMessageInSupabase(serverIndex, username, message) {
-        // Insert the message into Supabase
         const { error: insertError } = await supabaseAdmin
             .from('chat_messages')
             .insert({
@@ -209,7 +201,7 @@ class DiscordBot {
             return;
         }
 
-        // Maintain only 100 messages in the table
+        // Maintain only 100 messages
         const { count, error: countError } = await supabaseAdmin
             .from('chat_messages')
             .select('id', { count: 'exact', head: true });
@@ -220,7 +212,6 @@ class DiscordBot {
         }
 
         if (count > 100) {
-            // Delete oldest messages to keep only the latest 100
             const { data: oldMessages, error: selectError } = await supabaseAdmin
                 .from('chat_messages')
                 .select('id')
@@ -246,6 +237,23 @@ class DiscordBot {
                 }
             }
         }
+    }
+    setupMessageListener() {
+        this.client.on('messageCreate', async (message) => {
+            if (message.author.bot || message.channel.id !== this.channelId) return;
+
+            const username = message.author.username;
+            const content = message.content;
+
+            console.log(`Received message from Discord user ${username}: ${content}`);
+
+            // Send the message to all servers
+            await this.sendMessageToAllServers(username, content);
+
+            // Store the Discord message in Supabase as well
+            const discordServerIndex = 5;
+            await this.storeMessageInSupabase(discordServerIndex, username, content);
+        });
     }
 }
 
