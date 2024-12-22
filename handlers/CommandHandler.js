@@ -36,7 +36,7 @@ export class CommandHandler {
 
         console.log('Attempting to register slash commands...');
         await rest.put(
-            Routes.applicationGuildCommands(this.clientId, this.guildId),
+            Routes.applicationGuildCommands(this.clientId, this.guildId, this.clientId),
             { body: slashCommands }
         );
         console.log('Successfully registered slash commands.');

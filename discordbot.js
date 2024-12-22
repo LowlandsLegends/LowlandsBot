@@ -1,5 +1,5 @@
 // discordbot.js
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
@@ -10,6 +10,7 @@ import { RconServerCommand } from './commands/RconServerCommand.js';
 import { ListServersCommand } from './commands/ListServersCommand.js';
 import { ActivityType } from 'discord.js';
 import { ChangeKitAmountCommand } from './commands/ChangeKitAmountCommand.js';
+import { ListServersLiveCommand } from './commands/ListServersLiveCommand.js';
 
 dotenv.config();
 
@@ -25,9 +26,10 @@ class DiscordBot {
             intents: [
                 GatewayIntentBits.Guilds,
                 GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.MessageContent,
-                GatewayIntentBits.GuildIntegrations
+                GatewayIntentBits.GuildMessageReactions, // Add this intent
+                GatewayIntentBits.MessageContent // If you need to access message content
             ],
+            partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User],
         });
 
         this.rconManager = rconManager;
@@ -38,8 +40,8 @@ class DiscordBot {
 
         // Initialize command handler
         this.commandHandler = new CommandHandler(this.client, {
-            token: process.env.DISCORD_TOKEN,
-            clientId: process.env.CLIENT_ID,
+            token: process.env.DISCORD_TOKEN_BETA,
+            clientId: process.env.CLIENT_ID_BETA,
             guildId: process.env.GUILD_ID,
             rconManager: this.rconManager
         });
@@ -49,20 +51,21 @@ class DiscordBot {
         this.commandHandler.registerCommand(new RconServerCommand(allowedRoleId));
         this.commandHandler.registerCommand(new ListServersCommand());
         this.commandHandler.registerCommand(new ChangeKitAmountCommand(allowedRoleId));
+        this.commandHandler.registerCommand(new ListServersLiveCommand(allowedRoleId));
     }
 
     async init() {
         await this.loginDiscord();
         await this.commandHandler.registerWithDiscord();
         this.commandHandler.setupInteractionListener();
-        this.setupMessageListener();
-        this.startChatFetchCycle();
-        this.startFetchGameLogCycle();
-        this.startPresenceUpdateCycle();
+        //this.setupMessageListener();
+        //this.startChatFetchCycle();
+        //this.startFetchGameLogCycle();
+        //this.startPresenceUpdateCycle();
     }
 
     async loginDiscord() {
-        const token = process.env.DISCORD_TOKEN;
+        const token = process.env.DISCORD_TOKEN_BETA;
         if (!token) {
             throw new Error('DISCORD_TOKEN is not set.');
         }
