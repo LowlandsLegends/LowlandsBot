@@ -9,6 +9,7 @@ import { RconCommand } from './commands/RconCommand.js';
 import { RconServerCommand } from './commands/RconServerCommand.js';
 import { ListServersCommand } from './commands/ListServersCommand.js';
 import { ActivityType } from 'discord.js';
+import { ChangeKitAmountCommand } from './commands/ChangeKitAmountCommand.js';
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ class DiscordBot {
         this.commandHandler.registerCommand(new RconCommand(allowedRoleId));
         this.commandHandler.registerCommand(new RconServerCommand(allowedRoleId));
         this.commandHandler.registerCommand(new ListServersCommand());
+        this.commandHandler.registerCommand(new ChangeKitAmountCommand(allowedRoleId));
     }
 
     async init() {
