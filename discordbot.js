@@ -40,8 +40,8 @@ class DiscordBot {
 
         // Initialize command handler
         this.commandHandler = new CommandHandler(this.client, {
-            token: process.env.DISCORD_TOKEN_BETA,
-            clientId: process.env.CLIENT_ID_BETA,
+            token: process.env.DISCORD_TOKEN,
+            clientId: process.env.CLIENT_ID,
             guildId: process.env.GUILD_ID,
             rconManager: this.rconManager
         });
@@ -58,14 +58,14 @@ class DiscordBot {
         await this.loginDiscord();
         await this.commandHandler.registerWithDiscord();
         this.commandHandler.setupInteractionListener();
-        //this.setupMessageListener();
-        //this.startChatFetchCycle();
-        //this.startFetchGameLogCycle();
-        //this.startPresenceUpdateCycle();
+        this.setupMessageListener();
+        this.startChatFetchCycle();
+        this.startFetchGameLogCycle();
+        this.startPresenceUpdateCycle();
     }
 
     async loginDiscord() {
-        const token = process.env.DISCORD_TOKEN_BETA;
+        const token = process.env.DISCORD_TOKEN;
         if (!token) {
             throw new Error('DISCORD_TOKEN is not set.');
         }
