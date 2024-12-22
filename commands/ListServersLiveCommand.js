@@ -50,6 +50,14 @@ export class ListServersLiveCommand {
             } catch (err) {
                 console.error(`Error on ${s.name}:`, err);
                 playerListResult = `Error retrieving players: ${err.message}`;
+                if (error.message && error.message.includes('Timeout')) {
+                    // Attempt a reconnect or simply skip this iteration
+                    console.log(`Attempting to reconnect to ${server.name} due to timeout...`);
+                    await this.rconManager.connectRCON(server);
+
+                    // Optional: Add a short delay before next attempt if desired
+                    await new Promise(res => setTimeout(res, 5000));
+                }
             }
 
             const playerCount = this.getPlayerCountFromList(playerListResult);
