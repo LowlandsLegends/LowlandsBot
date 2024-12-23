@@ -71,7 +71,7 @@ class RCONManager extends EventEmitter {
     scheduleReconnect(server) {
         // Avoid multiple reconnection attempts
         if (this.rconClients[server.index]) {
-            this.rconClients[server.index].removeAllListeners();
+            this.rconClient.closeAll();
             delete this.rconClients[server.index];
         }
 
