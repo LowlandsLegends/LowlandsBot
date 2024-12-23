@@ -175,7 +175,13 @@ export class ListServersLiveCommand {
                 const updatedEmbed = await this.buildEmbed(rconManager);
                 await message.edit({ embeds: [updatedEmbed] });
             } catch (err) {
-                console.error('Error updating embed:', err);
+                console.error('Failed To Update embed retrying, Error:', err);
+                if (!rconManager.server) {
+                    console.error('Failed to update embed due to lost RCON connection ')
+                }
+                const updatedEmbed = await this.buildEmbed(rconManager);
+                await message.edit({ embeds: [updatedEmbed] });
+                await new Promise(res => setTimeout(res, 5000));
             }
         }, this.updateIntervalMs);
     }
