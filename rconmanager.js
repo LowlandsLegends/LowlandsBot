@@ -141,7 +141,7 @@ class RCONManager extends EventEmitter {
             return { serverIndex, username, message };
         } catch (error) {
             console.error(`Error getting latest chat on server index ${serverIndex}:`, error);
-            return null;
+            throw error;
         }
     }
 
