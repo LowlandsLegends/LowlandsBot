@@ -56,6 +56,7 @@ class RCONManager extends EventEmitter {
                 console.error(`RCON error on server ${server.name}:`, error);
                 if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
                     console.log(`Reconnecting to RCON server ${server.name} due to ${error.code}...`);
+                    sleep
                     this.scheduleReconnect(server);
                 } else {
                     // Handle other types of errors if necessary
@@ -102,11 +103,13 @@ class RCONManager extends EventEmitter {
             // Optionally, you can trigger a reconnect here if certain errors occur
             if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
                 const server = this.servers.find(s => s.index === serverIndex);
+                new Promise(resolve => setTimeout(resolve, 30000));
                 if (server) {
                     this.scheduleReconnect(server);
                 }
+            } else {
+                return new Promise(resolve => setTimeout(resolve, ms));
             }
-            throw error;
         }
     }
 
