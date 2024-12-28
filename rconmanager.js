@@ -72,7 +72,7 @@ class RCONManager extends EventEmitter {
     scheduleReconnect(server) {
         // Avoid multiple reconnection attempts
         if (this.rconClients[server.index]) {
-            this.rconClient.closeAll();
+            RCONManager.closeAll();
             delete this.rconClients[server.index];
         }
 
@@ -103,12 +103,14 @@ class RCONManager extends EventEmitter {
             // Optionally, you can trigger a reconnect here if certain errors occur
             if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
                 const server = this.servers.find(s => s.index === serverIndex);
-                new Promise(resolve => setTimeout(resolve, 30000));
+                new Promise(resolve => setTimeout(resolve, 60000));
                 if (server) {
                     this.scheduleReconnect(server);
+                } else {
+                    throw new Error(`Server Index ${serverIndex} Not Found`)
                 }
             } else {
-                return new Promise(resolve => setTimeout(resolve, ms));
+                throw error
             }
         }
     }
@@ -149,7 +151,7 @@ class RCONManager extends EventEmitter {
     }
 
     // Optionally, add a method to gracefully close all connections
-    async closeAll() {
+    static async closeAll() {
         for (const serverIndex in this.rconClients) {
             try {
                 await this.rconClients[serverIndex].end();
