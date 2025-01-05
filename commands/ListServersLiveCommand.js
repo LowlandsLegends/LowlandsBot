@@ -12,6 +12,7 @@ export class ListServersLiveCommand {
         this.allowedRoleID = allowedRoleID;
         this.stopEmoji = '🛑';
         this.updateIntervalMs = 10000;
+        this.requiredRoles = [allowedRoleID]
     }
 
     getSlashCommand() {

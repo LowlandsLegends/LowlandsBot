@@ -11,12 +11,13 @@ import { ListServersCommand } from './commands/ListServersCommand.js';
 import { ActivityType } from 'discord.js';
 import { ChangeKitAmountCommand } from './commands/ChangeKitAmountCommand.js';
 import { ListServersLiveCommand } from './commands/ListServersLiveCommand.js';
+import cron from 'node-cron'
 
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_KEY;
-const allowedRoleId = '1319503680340361246'; 
+const allowedRoleId = '1319503680340361246';
 
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
@@ -62,6 +63,7 @@ class DiscordBot {
         this.startChatFetchCycle();
         this.startFetchGameLogCycle();
         this.startPresenceUpdateCycle();
+        await this.scheduleDailyDinoWipe();
     }
 
     async loginDiscord() {
@@ -320,6 +322,46 @@ class DiscordBot {
         }
         const lines = playerListResult.split(/\r?\n/).filter(line => line.trim() !== '');
         return lines.length;
+    }
+
+    async dailyDinoWipe() {
+        try {
+            for (const server of this.rconManager.servers) {
+                console.log(`Wiping Wild dinos for ${this.rconManager.server.name}`)
+                await this.rconManager.executeRconCommand(server.index, "broadcast Destroying All Wild Dinos in 1< Minute")
+                await this.rconManager.executeRconCommand(server.index, "destroywilddinos")
+            }
+        } catch (error) {
+            console.error('Error Destroying Wild Dinos', error)
+        }
+    }
+
+    async scheduleDailyDinoWipe() {
+        const notifyDinoWipeTimes =[{ cron: '0 23 * * *', timeLeft: "1 hour" }, { cron: '30 23 * * *', timeLeft: "30 minutes" },
+            { cron: '45 23 * * *', timeLeft: "15 minutes" }, { cron: '50 23 * * *', timeLeft: "10 minutes" },
+            { cron: '55 23 * * *', timeLeft: "5 minutes" }
+            ];
+        
+        try {
+            notifyDinoWipeTimes.forEach((obj) => {
+                cron.schedule(obj.cron, async () =>{
+                    console.log(`Notifying for dino wipe in ${obj.timeLeft}`)
+                    for (const server of this.rconManager.servers){
+                        await this.rconManager.executeRconCommand(server.index, `Wild Dino Wipe in ${obj.timeLeft}`)
+                    }
+                })
+            })
+            console.log("Succesfully Registered Daily Dino Wipe")
+
+        } catch (error) {
+            console.error('Error Notifiying Dino Wipe Times', error)
+        }
+        cron.schedule('59 23 * * *', async () => {
+            console.log('Running daily dino wipe at 23:59...');
+            await this.dailyDinoWipe();
+        });
+
+
     }
 }
 
