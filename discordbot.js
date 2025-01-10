@@ -22,6 +22,7 @@ const allowedRoleId = '1319503680340361246';
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 class DiscordBot {
+    static developmentMode = false;
     constructor(rconManager) {
         this.client = new Client({
             intents: [
@@ -41,8 +42,8 @@ class DiscordBot {
 
         // Initialize command handler
         this.commandHandler = new CommandHandler(this.client, {
-            token: process.env.DISCORD_TOKEN,
-            clientId: process.env.CLIENT_ID,
+            token: DiscordBot.developmentMode ? process.env.DISCORD_TOKEN_BETA : process.env.DISCORD_TOKEN,
+            clientId: DiscordBot.developmentMode ? process.env.CLIENT_ID_BETA : process.env.CLIENT_ID,
             guildId: process.env.GUILD_ID,
             rconManager: this.rconManager
         });
@@ -59,11 +60,14 @@ class DiscordBot {
         await this.loginDiscord();
         await this.commandHandler.registerWithDiscord();
         this.commandHandler.setupInteractionListener();
-        this.setupMessageListener();
-        this.startChatFetchCycle();
-        this.startFetchGameLogCycle();
-        this.startPresenceUpdateCycle();
-        await this.scheduleDailyDinoWipe();
+        if (!DiscordBot.developmentMode){
+            this.setupMessageListener();
+            this.startChatFetchCycle();
+            this.startPresenceUpdateCycle();
+            await this.scheduleDailyDinoWipe();
+        } else {
+            console.log('Bot running in development mode. ChatFetchCycle, PresenceUpdateCycle And DailyDinoWipe Suspended')
+        }
     }
 
     async loginDiscord() {
@@ -88,6 +92,26 @@ class DiscordBot {
         }, 1000);
     }
 
+    async sendAdminLogToDiscord(server, username, message) {
+        console.log(`Admin command detected from ${server.name}, sending to discord log channel...`);
+        const payload = {
+            content: `**[${server.name}]:\n\`\`\`${username}:** ${message}\`\`\``,
+        };
+
+        const response = await fetch(this.webhookUrlLog, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Failed to send webhook message for ${server.name}: ${response.status} ${response.statusText} - ${errorText}`);
+        } else {
+            console.log(`Sent Admin log from ${server.name} to Discord.`);
+        }
+    }
+
     async fetchAndStoreChat(server) {
         try {
             const chatData = await this.rconManager.getLatestChat(server.index);
@@ -95,18 +119,19 @@ class DiscordBot {
 
             const { username, message } = chatData;
 
-            // Check if admin command
-            if (username.includes('Admin')) {
-                console.log(`Admin command detected from ${server.name}, skipping...`);
-                return;
-            }
-
             if (this.lastMessages[server.index] === message) {
                 console.log(`Duplicate message from ${server.name}: ${message}`);
                 return;
             }
 
             this.lastMessages[server.index] = message;
+
+            // Check if admin command
+            if (username.includes('Admin')) {
+                console.log("Admin Command detected Sending To Discord")
+                await this.sendAdminLogToDiscord(server, username, message);
+                return; 
+            }
 
             const content = `**[${server.name}] ${username}:** ${message}`;
             const payload = { content };
@@ -167,50 +192,6 @@ class DiscordBot {
                     console.error(`Error sending message to server ${server.name}:`, error);
                 }
             }
-        }
-    }
-
-    async startFetchGameLogCycle() {
-        for (const server of this.rconManager.servers) {
-            setInterval(async () => {
-                await this.getGameLog(server);
-            }, 10000);
-        }
-    }
-
-    async getGameLog(server) {
-        try {
-            const log = await this.rconManager.executeRconCommand(server.index, 'getgamelog');
-
-            if (!log || log.trim() === 'Server received, But no response!!') {
-                return;
-            }
-
-            const payload = {
-                content: `**[${server.name}]**:\n\`\`\`${log}\`\`\``,
-            };
-
-            const response = await fetch(this.webhookUrlLog, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Failed to send webhook message for ${server.name}: ${response.status} ${response.statusText} - ${errorText}`);
-            } else {
-                console.log(`Sent game log from ${server.name} to Discord.`);
-            }
-        } catch (error) {
-            console.error(`Error Getting Game Log for ${server.name}:`, error);
-            // Attempt a reconnect or simply skip this iteration
-            console.log(`Attempting to reconnect to ${server.name} due to timeout...`);
-            console.error(`Error fetching chat from server ${server.name}:`, error);
-            await this.rconManager.connectRCON(server);
-
-            // Optional: Add a short delay before next attempt if desired
-            await new Promise(res => setTimeout(res, 5000));
         }
     }
 
@@ -354,7 +335,7 @@ class DiscordBot {
             console.log("Succesfully Registered Daily Dino Wipe")
 
         } catch (error) {
-            console.error('Error Notifiying Dino Wipe Times', error)
+            console.error('Error In Schedule Dino Wipe Function: ', error)
         }
         cron.schedule('59 23 * * *', async () => {
             console.log('Running daily dino wipe at 23:59...');
